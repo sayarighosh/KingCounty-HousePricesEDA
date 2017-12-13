@@ -1,0 +1,766 @@
+---
+title: "King County House prices Analysis by Sayari Ghosh"
+author: "Sayari Ghosh"
+date: "October 21, 2017"
+output: github_document
+always_allow_html: yes
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE)
+```
+
+This report explores the King county house prices dataset which is available on 
+Kaggle website. In this analysis we will try to find out on which factors is the 
+house price dependend on.  
+
+```{r}
+data = read.csv('kc_house_data.csv')
+```
+
+```{r}
+head(data)
+```
+
+```{r}
+dim(data)
+```
+Our dataset consists of 21 variables, with almost 21613 observations.
+
+```{r}
+str(data)
+```
+
+```{r}
+summary(data)
+```
+
+```{r}
+names(data)
+```
+
+
+The metatdata description of the variables is not provided in Kaggle. Although 
+some of them are easy to understand there are a few which is ambigious.  
+The dataset contains the following 21 variables: 
+
+id : The id of the house           
+date : The date when this information was taken.(dates between May 2014 
+       and May 2015.)         
+price : Price of the house       
+bedrooms : No of bedrooms     
+bathrooms : No of bathrooms     
+sqft_living : Living area in square feet   
+sqft_lot : Lot area in square feet   
+floors : No of floors       
+waterfront : House has a waterfront or not
+view : Views of the houses         
+condition : House condition ranging from 1 to 5    
+grade : House grade ranging from 1 to 13        
+sqft_above: Living area excluding the basement
+sqft_basement : Basement area
+yr_built : The year the house was build
+yr_renovated : The year the house was renovated  
+zipcode : Zipcode of the house
+lat : Latitude 
+long : Longitude    
+sqft_living15 : The average house square footage of the 15 closest houses
+sqft_lot15 : The average lot square footage of the 15 closest houses
+
+The columns id,date are redundant in this analysis so it is better to remove
+them.
+
+```{r}
+kc_data <- subset(data, , -c(id,date))
+head(kc_data)
+```
+
+Preparing the dataset
+
+Adding and modifying columns to be used later.
+
+```{r}
+kc_data$price_cat <- cut(kc_data$price,c(0,200000,500000,800000,1500000,7700000)
+                     ,labels=c("Cheap", "Moderate", "High", "Expensive","Max"))
+
+kc_data$yr_builtR[((kc_data$yr_built>=1900)&(kc_data$yr_built<=1925))]<-"1900-1925"
+kc_data$yr_builtR[((kc_data$yr_built>=1926)&(kc_data$yr_built<=1950))]<-"1926-1950"
+kc_data$yr_builtR[((kc_data$yr_built>=1951)&(kc_data$yr_built<=1975))]<-"1951-1975"
+kc_data$yr_builtR[((kc_data$yr_built>=1976)&(kc_data$yr_built<=2000))]<-"1976-2000"
+kc_data$yr_builtR[((kc_data$yr_built>=2001)&(kc_data$yr_built<=2015))]<-"2001-2015"
+```
+
+Creating a categorical variable for price and assigning them to "cheap","moderate","high","expensive","max". 
+Creating categorical variable for the year_built column.
+Created 5 categories for this. 
+
+Converting the varibles waterfront,condition,floors,grade,bedrooms into factor
+variables.
+
+```{r}
+kc_data$waterfront <- as.factor(kc_data$waterfront)
+kc_data$condition <- as.factor(kc_data$condition)
+kc_data$floors <- as.factor(kc_data$floors)
+kc_data$grade <- as.factor(kc_data$grade)
+kc_data$bedrooms <- as.factor(kc_data$bedrooms)
+str(kc_data)
+```
+
+```{r}
+head(kc_data)
+```
+
+Libraries used: 
+
+```{r}
+library(ggplot2)
+library(ggthemes)
+library(corrplot)
+library(GGally)
+library(magrittr)
+library(dplyr)
+library(zipcode)
+library(plotly)
+library(RColorBrewer)
+library(lattice)
+library(leaflet)
+library(reshape2)
+library(reshape)
+library(scatterpie)
+library(ROCR)
+library(htmlwidgets)
+```
+
+# Univariate Plots Section 
+
+```{r}
+p1 <- ggplot(aes(x=bedrooms),data=kc_data) +
+ geom_bar(fill="blue",alpha=.5)  + xlim(0,10) + theme_calc()+ scale_x_discrete("bedrooms") + 
+ labs(x="Bedrooms", y="Count", title="Number of houses with different bedrooms")
+ggplotly(p1)
+```
+
+Out of the houses in King county a major portion of them are of 3 bedrooms which 
+is ideal for small families.  
+
+```{r}
+p2 <- ggplot(aes(x=yr_built),data=kc_data) +
+  geom_histogram(col="red", fill="green", alpha = .2,binwidth = 1) + 
+  theme_hc() +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  labs(x="Year built", y="Count", title="Number of houses built in each year") 
+ggplotly(p2)
+```
+
+There is a gradual increase in the number of houses built across the years 
+with the maximum number of houses built in 2014. 
+
+```{r}
+p3 <- ggplot(aes(x=condition),data=kc_data) +
+  geom_bar(fill="blue",alpha=.5)  + 
+  xlim(0,8) + theme_calc()+  scale_x_discrete("condition") +
+  labs(x="Condition", y="Count", title="Number of houses with different conditions") 
+ggplotly(p3)
+```
+
+Most of the houses have a condition of 3 in King County. 
+
+```{r}
+p4 <- ggplot(aes(x=bathrooms),data=kc_data) +
+  geom_bar(fill="blue",alpha=.5)  + 
+  xlim(0,8) + theme_calc()+  scale_x_discrete("bathrooms") +
+  labs(x="bathrooms", y="Count", title="Number of houses with different bathrooms") 
+ggplotly(p4)
+```
+
+The most common bathrooms are 1 full bath and 2 full bath and 1 powder room in 
+the houses in king county. 
+
+```{r}
+p5 <- ggplot(kc_data, aes(x=grade)) +
+  geom_bar(fill='blue',stat="count",alpha=.5)  + theme_calc()+ scale_x_discrete("bedrooms") + 
+  labs(x="grade", y="count", title="Number of houses with different grades")
+ggplotly(p5)
+```
+
+The most common grade is 7 in King county with grades 1,2,3,13 being nonexistent
+
+```{r}
+summary(kc_data$sqft_living)
+```
+
+The median sqft_living is 1910 sq feet with the mean being 2080 sq feet.
+
+```{r}
+summary(kc_data$sqft_lot)
+```
+
+The median sqft_lot is 7618 sq feet with the mean being 15107 sq feet. The max 
+lot size is quite huge compared to the the other houses and may be considered 
+as an outlier.
+
+```{r}
+summary(kc_data$price)
+```
+
+The median price of the houses in king county is around 45000. 
+
+```{r}
+ggplot(kc_data,aes(x=price))+
+  geom_density(fill='red') + xlim(0,4e+06) + 
+  labs(x="price", y="density", title="Density distribution of price") 
+```
+
+The density distribution gives a plot that is right skewed. 
+
+```{r}
+ggplot(kc_data,aes(x=log(price)))+
+  geom_density(fill='red') +
+  labs(x="price", y="density", title="Density distribution of price in log scale") 
+```
+
+When the price is change to log of price the distribution changes to normal 
+distrbution from a skewed distribution. 
+
+```{r}
+ggplot(kc_data, aes(x=sqft_living)) +
+  geom_density(fill='blue') + xlim(0,10000) +
+  labs(x="sqft_living", y="density", title="Density distribution of sqft living")
+```
+
+Density distribution for sqft_living of the houses and it is right skewed.
+
+```{r}
+zip_count <- kc_data %>%
+  group_by(zipcode) %>%
+  summarise(count = n()) 
+data(zipcode)
+zip_count <- merge(zip_count, zipcode, by.x='zipcode', by.y='zip')
+
+head(zip_count[order(-zip_count$count),c(1,2,3)],5)
+```
+
+
+These 5 zipcodes have the highest number of houses and the top 3 cities are 
+Seattle, Maple valley and Redmond. 
+
+# Univariate Analysis
+
+### What is the structure of your dataset?
+
+There are 21613 houses in the dataset with 21 features. The variables condition,
+grade, and view, waterfront are ordered factor variables. 
+From the analysis done it seems that the most common condition is 3. The median 
+price of the houses is 45000,the most common bedroom is 3,the most common grade 
+is 7. 
+As it is not mentioned in the metatdata which of the values of the factor 
+variables is better it has to be found out later in bivariate plots. 
+
+### What is/are the main feature(s) of interest in your dataset? 
+
+The main features in the data set are price and sqft_living. I'd like to 
+determine which features are best for predicting the price of a houses and which 
+features have a strong correlation with price. I suspect sqft_living,sqft_lot,
+bedrooms and grade can help to build a predictive model to price of houses.
+
+### What other features in the dataset do you think will help support your \
+### investigation into your feature(s) of interest?
+
+I would like to explore condition, sqft_above, yr_build,yr_renovated and zipcode 
+features of the dataset and find insights from the data. 
+
+### Did you create any new variables from existing variables in the dataset?
+
+Yes I created price_cat,yr_buildR to have caegorical variables for conducting 
+furthur plots.
+
+### Of the features you investigated, were there any unusual distributions? \
+###Did you perform any operations on the data to tidy, adjust, or change the 
+### form of the data? If so, why did you do this?
+
+I will convert waterfront,condition,floors,grade into factor variables for 
+bivariate and multivariate analysis. 
+
+# Bivariate Plots Section
+ 
+```{r, fig.width=13,fig.height=6}
+qqmath(~sqft_above | price_cat, kc_data) 
+```
+
+By this Q-Q plots for each price category we see the variable sqft_above has a
+right skewed distribution.
+
+```{r,fig.width=10,fig.height=4}
+kc_c <- cor(kc_data[, "price"], kc_data[ , sapply(kc_data, is.numeric)]) 
+corrplot(kc_c, method="number")
+```
+
+
+In this correlation matrix of the price with other variables, the most dominant 
+correlations price has is with sqft_living(0.7), grade(0.67), sqft_above(0.61), sqft_living15(0.59) and bathrooms(0.53). This was different from what I had 
+expected. I was hoping that bedrooms,zip_code,condition and sqft_lot should have 
+a higher correlation with price. Zipcode has a negative correlation(-0.05) which
+is unusual. The average sqft living of 15 nearby houses (sqft_living15) is quite 
+relevant as in neighbourhood which has higher sqft living size, most of the 
+houses will be of similar size and also price. 
+
+So now I will focus on these variables with higher correlation. 
+
+Now looking into the plots for those variables with higher correlation value.
+
+```{r}
+ggplot(aes(x=sqft_living,y=price),data=kc_data) + geom_point(color="pink") +
+  stat_smooth(method="lm",se=F,alpha=0.6,size=1) + 
+  labs(title="correlation of price vs sqft living",x="Price in dollars", y="Sqft living")
+options(scipen=999)
+```
+
+Sqft_living has the highest correlation with price which is obvious and in the 
+price vs sqft_living we see a linear relationship between the two. The 
+regression line shows that the relationship is linear. 
+
+```{r}
+ggpairs(data=kc_data, columns=c(1,11),
+    mapping = aes(color = "red"),
+    axisLabels="show") + labs(title="correlation of price vs sqft above") 
+```
+
+This plots made using ggpairs gives a lot of information at one time. Similarly 
+sqft_above has more or less a linear with price. The density function of 
+sqft_above is also right skewed. This correlation is the third largest among 
+the variables selected. 
+
+```{r,fig.width=10}
+ggplot(aes(x=as.factor(bathrooms),y=price),data=kc_data) + geom_boxplot(col="green") +
+  labs(x="bathrooms", title="price vs bathrooms")
+```
+
+As bathrooms have a strong correlation with price we plotted this to further 
+understand the relationship. As the umber of bathroom increase the spread 
+increase of the boxplot indicating that the price difference is increasing. 
+Also as the number of bathrooms increase the first quantile value price also 
+goes up giving a positive correlation with price.
+
+```{r}
+p7 <- ggplot(kc_data, aes(x=as.factor(grade),y=price)) +
+  geom_boxplot(col="blue") +
+  labs(x="grade", title="price vs grades")
+ggplotly(p7)
+```
+
+Similarly this plot shows a gradual positive correlation of price with 
+increasing grade.Hence we can figure that houses with grade 13 is the best as it
+is the costliest. There are a lot of outliers in the grades ranging from 7 to 11
+
+```{r}
+meanprice_bygrade <- kc_data %>%
+  filter(price<=6000000) %>%
+  group_by(grade) %>% 
+ summarize(avgPrice = mean(price),count = n()) 
+meanprice_bygrade
+```
+
+The above is also proved by this summary table. 
+
+```{r}
+meanprice_byfloors <- kc_data %>%
+  filter(price<=6000000) %>%
+  group_by(floors) %>% 
+ summarize(avgPrice = mean(price))
+
+ggplot(aes(y=avgPrice,x=floors),data=meanprice_byfloors) + geom_bar(stat="identity") +
+  labs(y="avgprice", x="floors", title="Average price for each floor") 
+```
+
+The floor that has the highest average price is 2.5 followed by 3.5.
+
+```{r}
+p8 <- ggplot(kc_data, aes(group=grade,x=grade,y=sqft_above)) +
+  geom_boxplot(col="deep pink") + 
+  labs(x="grade", title="sqft above vs grades")
+ggplotly(p8)
+```
+
+Now looking into the correlation between grades and sqft above, I see there is a 
+positive correlation.
+
+```{r}
+ggplot(kc_data, aes(x=as.factor(view),y=price)) +
+  geom_boxplot(col="deep pink") + 
+  labs(x="grade", title="sqft above vs grades") 
+```
+
+From this plot I figured that view 4 is the best among the four. 
+
+```{r, fig.width=8,fig.height=8}
+ggplot(aes(group=bedrooms,x=bedrooms,y=price),data=data) +
+  geom_boxplot(col="dark green")  + xlim(0,11) + 
+  ggtitle("Price ranging for bedrooms") 
+```
+
+There are a lot of outliers in this boxplot for bedrooms 3,4,5,6 which indicate
+that price and bedrooms are not that correlated as I had assumed before. 
+
+```{r}
+ggplot(aes(x=sqft_lot,y=price),data=kc_data) + geom_point(color="deep pink") +
+  stat_smooth(method="lm",se=F,alpha=0.6,size=1.5) + 
+  labs(title="relation between house prices vs sqft lot")
+```
+
+Relationship of price vs sqft lot is clearly not linear and hence sqft lot 
+clearly does not affect price of houses in king county.
+
+```{r}
+ggplot(kc_data,aes(x=price, fill=waterfront , colour = waterfront))+
+  geom_density(alpha=.2) +
+  xlim(0,3e+06) +
+  labs(x="price", y="density", title="Density distribution of price with respect to waterfront   present or not") 
+```
+
+In this density plot the distribution of the price is studied with respect to
+waterfront being present or not. In the case where waterfront is not present the 
+prices are lower with the spread being less compared to the normal distribution 
+with waterfront where the price range is larger. 
+
+```{r}
+basement <- kc_data %>%
+mutate(basement_present = ifelse(sqft_basement == 0, "Not present", "Present")) %>%
+group_by(basement_present) %>%
+  filter(price<=6000000) %>%
+  summarise(total = n(),avg_price = mean(price)) 
+```
+
+```{r}
+p5 <- ggplot(data = basement,aes(x=total,y=avg_price,color=basement_present)) +
+  geom_point() + xlim(5000,14000) + 
+  labs(x="sqft_living", y="density", title="Density distribution of sqft living")
+ggplotly(p5)
+```
+
+In the neighbourhood, the number of houses having basement is less than the
+number of housing not having basement. By comparing the average prices we see 
+that it is higher for the houses with that have basement. It means most people 
+live in houses that does not have basement as the prices is comparitively 
+much higher. 
+
+```{r, fig.width=10,fig.height=7}
+spineplot(y=kc_data$price_cat,x=as.factor(kc_data$yr_builtR),
+          xlab="year category", ylab="price category",main="Price Distribution over years")
+```
+
+In the time range of 1900-1925 houses were more expensive compared to 1926-2000. 
+In 2000 there is again increase in the price range.
+
+```{r, fig.width=10,fig.height=7}
+spineplot(y=as.factor(kc_data$floors),x=as.factor(kc_data$yr_builtR),
+          xlab="year category", ylab="floors",main="floors of house Distribution over years")
+
+```
+
+In the early 1900s(1900-1950) mostly houses were built with 1,1.5 floors. But,
+gradually through the years in the 2000s this has changed and mostly houses are 
+built with 2 floors and 3.5 floors is also on the high.
+
+```{r, fig.width=10,fig.height=7}
+spineplot(y=as.factor(kc_data$condition),x=as.factor(kc_data$yr_builtR),
+          xlab="year category", ylab="condition",main="house condition distribution over the years")
+```
+By plotting condition vs the year category I found that most of the houses built 
+in he 2000s are of condition 3 compared to the previous years where other
+condition houses were also built. I can assume that condition 3 signifies 
+a mid condition that can be afforable by the middle working class. 
+
+#Bivariate Analysis 
+
+###Talk about some of the relationships you observed in this part of the \
+###investigation. How did the feature(s) of interest vary with other features in \
+###the dataset?
+
+Yes there were some relationships of interest. 
+# Houses built in 2000s are mostly of condition 3. 
+# Houses built in 2000s are mostly of 2 and 3.5 floors compared to 1900-1950 
+which were 1 and 1.5 floors 
+
+The feature of interest was price and it has a positive correlation with sqft_living,grade,sqft_above. 
+Contrary to my belief, number of bedrooms, sqft-lot and zipcode does not have
+a strong correlation with price. 
+
+### Did you observe any interesting relationships between the other features \
+### (not the main feature(s) of interest)?
+
+In the early 1900s(1900-1950) mostly houses were built with 1,1.5 floors. But,
+gradually through the years in the 2000s this has changed and mostly houses are 
+built with 2 floors and 3.5 floors is also on the high.
+
+### What was the strongest relationship you found?
+The strongest relationship is of price vs sqft_living as it has a positive 
+correlation of 0.7
+
+#Multivariate Plots
+
+```{r, fig.width=10,fig.height=5}
+ggplot(kc_data, aes(sqft_living, fill = as.factor(floors))) +
+  geom_density(alpha=.5) + xlim(0,9000) + 
+  labs(x="sqft_living", y="density", title="Density distribution of sqft_living for each floor")
+```
+
+In this plot I tried to density distribution of sqft living for each floor and 
+found that similar to price the height for 2.5 floor is maximum and variation of 
+price is less as compared to the other floor factors.
+
+```{r}
+ggplot(kc_data,aes(x=price, fill=condition , colour = condition)) +
+  geom_density(alpha=.3) + xlim(0,2.5e+06) +
+  labs(x="price", y="density", title="Density distribution of price in for each condition")
+```
+
+In this distribution the price is compared for each condition value. For the 
+condition 2 the variation of price is less compared to the the other conditions. 
+
+```{r}
+kc_data_ren <- kc_data %>%
+  filter( yr_renovated>=2000) %>%
+  group_by(yr_renovated) %>%
+  summarise(meanpriceRenovated = mean(price))
+
+kc_data_blt <- kc_data %>%
+  filter( yr_built>=2000) %>%
+  group_by(yr_built) %>%
+  summarise(meanpriceBuilt = mean(price))
+ 
+houses <- merge.data.frame(kc_data_blt,kc_data_ren,by.x = "yr_built", by.y = "yr_renovated")
+
+for(i in 1:nrow(houses))
+{ houses$no[i] = i}  
+
+houses<-melt(houses,id=c("no","yr_built"))
+houses_s <- houses[order(houses$yr_built),]
+```
+
+```{r}
+ggplot(houses_s,aes(y=value,x=yr_built,fill=variable))+
+     geom_bar(stat="identity",width=.5,position="dodge") +
+  labs(x="year", y="price", title="MeanPrice for yrbuilt vs yrRenovated")
+```
+
+
+The mean prices of the houses that were built in 2000 to 2012 was way lower 
+that those renovated in that period. But there is a gradual shift and the mean
+price built has increased after 2012.
+
+```{r}
+p11 <- ggplot(aes(y=sqft_living,x=sqft_living15),data=kc_data) +
+ geom_point(aes(col=as.factor(grade)),alpha=.7) +
+  labs(x="sqft_living15", y="sqft_living", title="Sqft_living15 vs sqft_living for each grade")
+ggplotly(p11)
+```
+
+There is a strong correlation between sqft_living and sqft_living15. The grades 
+from 1 to 6 has usually smaller values for sqft_living and sqft_living15 and it 
+gradually increases for grades 7 to 13. 
+
+```{r}
+p13 <- ggplot(kc_data,aes(x=sqft_living,y=price,col=yr_built,group=factor(yr_built)))+
+  geom_point(alpha=.5)+ xlim(0,10000) +
+  scale_color_gradientn(colors = terrain.colors(10)) +
+  labs(x="sqft_living", y="price", title="Sqft_living15 vs price for each year category")
+ggplotly(p13)
+```
+
+For the same sqft_living houses built in 1900 has higher price than the ones 
+built in 2000s. This is very interesting observation. But houses made in 
+larger sqft_living has increased in the 2000s.
+
+```{r, fig.width=10,fig.height=10}
+p14 <- ggplot(data=subset(kc_data,price<=6000000), aes(y=price,x=sqft_above)) +
+  geom_line(aes(color=condition)) + facet_wrap( ~ condition, ncol=1)  +
+  labs(x="sqft_above", y="price", title="Sqft_above vs price for each year condition")
+ggplotly(p14)
+``` 
+
+This plot helps to understand that houses with condition 1,2 has both less range 
+of price and sqft above compared to the other 3. 
+
+```{r}
+ggplot(kc_data,aes(factor(bedrooms),factor(floors), col=factor(grade)))+
+  geom_jitter(alpha=0.5, size=2)+
+  scale_colour_manual(values = c('yellow','pink','red','orange',"black","white",'green',"deep pink","violet","brown","grey",'blue')) +
+  labs(title="Bedrooms vs. grade",x="Bedrooms",y="floors")
+```
+
+This plot of bedrooms and floors has horizontal strips. The majority of houses with 3 floors have grade 8. For floors 2, the majority is 8 and 9. For floors 1 and 1.5 the most common grade is 6 and 7. 
+
+```{r}
+kc_data$view <- as.factor(kc_data$view)
+p19 <- ggplot(kc_data, aes(sqft_living, sqft_lot,color=floors)) +
+  geom_point(size=2, aes(shape=view)) +  xlim(0,10000) + ylim(0,1300000) +
+  ggtitle("sqft-living vs sqft_lot")
+p19
+```
+
+The plots shows that lot size is quite high compared to the sqft living. the majority of houses are with 1 and 2 floors and between 2400 to 7000 sqft_living. Most of the houses are of view 0. 
+
+```{r}
+zipbycondition <- kc_data %>%
+  filter(price<=6000000) %>%
+  group_by(zipcode,condition) %>% 
+ summarize(avgPrice = mean(price),count = n()) 
+
+zipbycondition_m <- cast(zipbycondition, zipcode~condition)
+zipbycondition_m[is.na(zipbycondition_m)] <- 0
+zipbycondition_m <- lapply(zipbycondition_m, as.numeric)
+
+myvars <- c("lat", "long", "zipcode")
+kc_new <- kc_data[myvars]
+kc_final <- kc_new[!duplicated(kc_new[,'zipcode']),]
+
+zipbycondition_final <- merge(zipbycondition_m,kc_final,by="zipcode")
+zipbycondition_final[1] <- lapply(zipbycondition_final[1], as.factor)
+```
+
+```{r, fig.width=13,fig.height=6}
+states <- map_data("state")
+washington <- subset(states, region %in% c("washington"),zoom=14)
+
+p20 <- ggplot(washington, aes(long, lat)) +
+    geom_map(map=washington, aes(map_id=region), fill=NA, color="black") +
+    coord_quickmap()
+p20 + geom_scatterpie(aes(x=long, y=lat, group=zipcode),
+    data=zipbycondition_final, cols=c("X1","X2","X3","X4","X5"), color=NA, alpha=.8) + 
+    coord_fixed(xlim = c(-121.8, -122.5),  ylim = c(47.18, 47.8), ratio = 1.3) +
+    labs(title="House condition distribution in the differnet zipcodes")
+```
+
+
+In this plot I am trying to figure how the house condition is distributed in the 
+different zipcodes. The most common condition is 3 and it has the majority in
+most zipcodes followed by 4 condition. 
+
+
+```{r}
+center_lon = median(data$long,na.rm = TRUE)
+center_lat = median(data$lat,na.rm = TRUE)
+
+facclr <- colorFactor(c("black","blue","gold","red","green"),
+                      kc_data$price_cat)
+
+m <- leaflet(kc_data) %>% addProviderTiles("Esri.NatGeoWorldMap") %>%
+  addCircles(lng = ~long, lat = ~lat, 
+             color = ~facclr(price_cat))  %>%
+  setView(lng=center_lon, lat=center_lat,zoom = 12) %>%
+  
+  addLegend("bottomright", pal = facclr, values = ~price_cat,
+            title = "House Price Distribution",
+            opacity = .8)
+m
+saveWidget(m, file="map1.html")
+```
+
+
+This visualization predicts that the houses near the coastline are more 
+expensive than the houses that are not. 
+
+
+```{r}
+facclr <- colorFactor(c("black","blue","gold","red","green"),
+                      kc_data$yr_builtR)
+
+m <- leaflet(kc_data) %>% addProviderTiles("Esri.NatGeoWorldMap") %>% 
+  addCircles(lng = ~long, lat = ~lat, 
+             radius = ~ifelse(kc_data$waterfront == 0, 5, 200),
+             color = ~facclr(yr_builtR))  %>%
+  setView(lng=center_lon, lat=center_lat,zoom = 15) %>%
+  
+  addLegend("bottomright", pal = facclr, values = ~yr_builtR,
+            title = "House Built Distribution",
+            opacity = .8)
+saveWidget(m, file="map2.html")
+```
+
+
+In this plot I wanted o see how the houses were built over the years. In the 
+Seattle region the houses were built near the coastline first. Then as time
+progressed people started moving towards the mainland. In the right side of the
+map we see most houses built after 1950s indicating newer settlemets than the
+left side. Also I have addded waterfront as size so we can identify houses 
+with waterfront. 
+
+### Talk about some of the relationships you observed in this part of the \
+### investigation. Were there features that strengthened each other in terms of \
+### looking at your feature(s) of interest?
+
+The costlier houses are built along the coastline and they are built in the 1900. 
+The prices have remained high for those houses.
+
+The mean prices of the houses that were built in 2000 to 2012 was way lower that 
+those renovated in that period. But there is a gradual shift and the mean price 
+built has increased after 2012.
+
+### Plot One
+```{r echo=FALSE, Plot_One}
+ggplot(aes(x=sqft_living,y=price),data=kc_data) + geom_point(color="pink") +
+  stat_smooth(method="lm",se=F,alpha=0.6,size=1) + 
+  labs(title="correlation of price vs sqft living",y="Price in dollars", x="Living size in sqft")
+options(scipen=999)
+```
+
+### Description One
+I choose this as price has the as this gives us the strongest correlation with
+sqft_living(0.71). 
+
+### Plot Two
+```{r echo=FALSE, Plot_Two, fig.width=10,fig.height=7}
+spineplot(y=kc_data$price_cat,x=as.factor(kc_data$yr_builtR),
+          xlab="year category", ylab="price category",main="Price Distribution over years")
+```
+
+### Description Two
+The construction of houses in the cheap category has gradually reduced and 
+nowerdays cheap category is not built at all. It is edging towards the expensive 
+side now in the 2000s. The moderate price category was maximun in the 1951-1975 
+range. 
+
+
+### Plot Three
+```{r echo=FALSE, Plot_Three}
+facclr <- colorFactor(c("black","blue","gold","red","green"),
+                      kc_data$price_cat)
+
+m <- leaflet(kc_data) %>% addProviderTiles("Esri.NatGeoWorldMap") %>%
+  addCircles(lng = ~long, lat = ~lat, 
+             color = ~facclr(price_cat))  %>%
+  setView(lng=center_lon, lat=center_lat,zoom = 12) %>%
+  
+  addLegend("bottomright", pal = facclr, values = ~price_cat,
+            title = "House Price Distribution",
+            opacity = .8)
+m
+saveWidget(m, file="map1.html")
+```
+
+### Description Three
+
+The houses near the coastline is the cosliest and also built earlier in time. 
+This indicates that people first inhabited the coastline and then in the later 
+years more towards the interior in King County. 
+
+------
+
+# Reflection
+First for doing this project comming up with a tidy dataset with lots of 
+features was a challenge. I did a lot of research and found this tidy dataset on
+Kaggle which suited my requirements.
+The King county house pricing dataset has 21613 observations and 21 features. I 
+wanted to explore all the 21 features and started by plotting the individual 
+variables in the data set. Then I looked for any interesting relationships 
+present in the dataset mong the features. I had expected that price was 
+positively correlated with a lot of variables. But I was wrong as value for 
+number of bedrooms,zipcode, lot size  was lot. The most important correlation 
+is sqft of living. I found out the that condition 3 is the most prevelant among 
+all houses. The houses were first built along the coastline and then people 
+moved towards the mainland. 
+I loved working with this housing prices data. It would have been great if the 
+dataset contained day and month for the built year. I could have drawn a 
+lot of insights and also use time series forcasting to predict for the next
+years to come. I would continue with price prediction later on for this dataset.
+I plan to do both of these things if possible with this dataset.
